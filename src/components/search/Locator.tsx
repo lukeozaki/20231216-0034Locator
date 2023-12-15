@@ -104,7 +104,7 @@ const Locator = (props: LocatorProps) => {
               bounds={results.map((data) => data.rawData.yextDisplayCoordinate)}
               padding={{ top: 100, bottom: 200, left: 50, right: 50 }}
               className="h-full"
-              {...mapKey}
+              clientKey="gme-yextinc"
             >
               {results.map((data, index) => (
                 <CustomMarker
