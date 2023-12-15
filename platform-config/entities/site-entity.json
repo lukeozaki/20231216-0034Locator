@@ -1,7 +1,7 @@
 {
   "$id": "site-entity",
   "$schema": "https://schema.yext.com/config/km/entity/v1",
-  "primaryLocale": "en",
+  "primaryLocale": "ja",
   "content": {
     "c_copyrightMessage": "© 2022. All Rights Reserved.",
     "c_facebook": "https://www.facebook.com/",
