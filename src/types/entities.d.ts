@@ -38,7 +38,7 @@ interface BaseProfile {
 export interface SiteProfile extends BaseProfile {
   readonly name: string;
   readonly c_brand?: string;
-  // readonly c_copyrightMessage?: string;
+  readonly c_copyrightMessage?: string;
   readonly c_facebook?: string;
   readonly c_instagram?: string;
   readonly c_youtube?: string;
