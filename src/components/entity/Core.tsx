@@ -122,6 +122,7 @@ const Core = (props: CoreProps) => {
               className="h-[300px] mt-6"
               coordinate={profile.yextDisplayCoordinate}
               provider={GoogleMaps}
+              clientKey="gme-yextinc"
               {...mapKey}
             >
               {mappinSVG}
