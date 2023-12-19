@@ -39,10 +39,22 @@ const DirectoryHeroLayout = (props: DirectoryHeroProps) => {
           {line2 && <div className="Heading Heading--head">{line2}</div>}
         </h1>
         {props.searchPath && (
-          <DirectorySearchBar
-            placeholder="Search by city and state or ZIP code"
-            searcherPath={props.searchPath}
-          />
+          // <DirectorySearchBar
+          //   placeholder="Search by city and state or ZIP code"
+          //   searcherPath={props.searchPath}
+          // />
+          <form method="GET" action="/search" className="flex justify-center items-center w-full">
+                <input
+                  type="text"
+                  name="q"
+                  className="bg-white outline-none rounded-full border border-gray-300 focus:border-primary text-neutral-dark placeholder:text-neutral p-4 text-base h-auto Header-input"
+                  placeholder="検索"
+                  autoComplete="off"
+                  aria-activedescendant=""
+                  aria-describedby="1"
+                />
+                <button className="Header-button bg-blue-500 hover:bg-blue-700 text-white font-bold py-4 px-8 ml-2 rounded-full">検索</button>
+              </form>
         )}
       </div>
     </ErrorBoundaryWithAnalytics>

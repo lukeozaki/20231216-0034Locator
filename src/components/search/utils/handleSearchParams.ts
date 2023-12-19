@@ -1,5 +1,9 @@
 import { useEffect } from "react";
-import { Matcher, useSearchActions } from "@yext/search-headless-react";
+import {
+  Matcher,
+  useSearchActions,
+  useSearchState,
+} from "@yext/search-headless-react";
 import type {
   DisplayableFacetOption,
   DisplayableFacet,
@@ -48,7 +52,7 @@ export function useLoadInitialSearchParams(
 
     const loadUrlParams = async () => {
       // Get values from URL.
-      const query = searchParams.get("q");
+      let query = searchParams.get("q");
       const prettyQuery = searchParams.get("qp");
       const locationType = searchParams.get("location_type");
       const lat = searchParams.get("lat");
@@ -69,19 +73,49 @@ export function useLoadInitialSearchParams(
           : LOCATOR_STATIC_FILTER_FIELD;
 
       // If the filter value is available, set a filter with a string value in state.
+      // console.log(query);
+      if (query === null) {
+        query = "My Location";
+        searchParams.set("q", "My Location");
+        setSearchParams(searchParams);
+      }
       if (query) {
-        searchActions.setStaticFilters([
-          {
-            displayName: prettyQuery ?? "",
-            filter: {
-              fieldId: locationFilterId,
-              kind: "fieldValue",
-              matcher: Matcher.Equals,
-              value: query,
-            },
-            selected: true,
-          },
-        ]);
+        if (query === "My Location") {
+          try {
+            const position = await getUserLocation();
+
+            // Update user location bias.
+            searchActions.setUserLocation({
+              latitude: position.coords.latitude,
+              longitude: position.coords.longitude,
+            });
+
+            // Create Near static filter
+            searchActions.setStaticFilters([
+              {
+                displayName: query,
+                filter: {
+                  fieldId: "builtin.location",
+                  kind: "fieldValue",
+                  matcher: Matcher.Near,
+                  value: {
+                    lat: position.coords.latitude,
+                    lng: position.coords.longitude,
+                    radius: radius
+                      ? 1609 * parseInt(radius)
+                      : 1609 * GEOLOCATE_RADIUS,
+                  },
+                },
+                selected: true,
+              },
+            ]);
+          } catch (e) {
+            alert("User location could not be determined.");
+            console.error(e);
+          }
+        } else {
+          searchActions.setQuery(query);
+        }
       }
 
       // If the lat and lng search params are available, set a filter with a NearFilterValue value in state.
@@ -108,40 +142,6 @@ export function useLoadInitialSearchParams(
 
       // If the pretty query is "My Location", attempt to geolocate the user and
       // use their position to set a filter with a NearFilterValue value in state.
-      else if (prettyQuery === "My Location") {
-        try {
-          const position = await getUserLocation();
-
-          // Update user location bias.
-          searchActions.setUserLocation({
-            latitude: position.coords.latitude,
-            longitude: position.coords.longitude,
-          });
-
-          // Create Near static filter
-          searchActions.setStaticFilters([
-            {
-              displayName: prettyQuery,
-              filter: {
-                fieldId: "builtin.location",
-                kind: "fieldValue",
-                matcher: Matcher.Near,
-                value: {
-                  lat: position.coords.latitude,
-                  lng: position.coords.longitude,
-                  radius: radius
-                    ? 1609 * parseInt(radius)
-                    : 1609 * GEOLOCATE_RADIUS,
-                },
-              },
-              selected: true,
-            },
-          ]);
-        } catch (e) {
-          alert("User location could not be determined.");
-          console.error(e);
-        }
-      }
 
       // If only the pretty query is available, use it to find the top
       // autocomplete option and select that to set the filter in state.
@@ -175,12 +175,17 @@ export function useLoadInitialSearchParams(
             },
           ]);
         }
+      } else {
+        searchParams.set("q", "My Location");
       }
 
       // If any of the above functions set a static filter in the search state and there are facet params available,
       // parse the facet params and add them to the search state.
       if (
-        searchActions.state.filters.static?.find((filter) => filter.selected) &&
+        (searchActions.state.filters.static?.find(
+          (filter) => filter.selected
+        ) ||
+          query) &&
         parsedFacets
       ) {
         for (const [fieldId, options] of Object.entries(parsedFacets)) {
@@ -209,7 +214,8 @@ export function useLoadInitialSearchParams(
 
       // Finally, if a static filter is set as selected in the search state run a search vertical search.
       if (
-        searchActions.state.filters.static?.find((filter) => filter.selected)
+        searchActions.state.filters.static?.find((filter) => filter.selected) ||
+        query
       ) {
         try {
           await searchActions.executeVerticalQuery();
@@ -242,7 +248,7 @@ export function encodeStaticFilters(
   const activeFilter = selectedFilter?.filter as FieldValueStaticFilter;
 
   if (selectedFilter?.displayName) {
-    searchParams.set("qp", selectedFilter?.displayName);
+    searchParams.set("q", selectedFilter?.displayName);
   }
   if (activeFilter.matcher === Matcher.Equals) {
     searchParams.set("q", activeFilter.value.toString());
@@ -296,6 +302,7 @@ export function encodeFacetFilters(
 export function useHandleSearchParams(initialParamsLoaded: boolean) {
   const searchActions = useSearchActions();
   const [searchParams, setSearchParams] = useSearchParams();
+  const query = useSearchState((s) => s.query.input);
 
   useEffect(() => {
     // Don't register listeners on page load until all of the initial params are loaded.
@@ -308,6 +315,12 @@ export function useHandleSearchParams(initialParamsLoaded: boolean) {
           const encodedFilters = encodeStaticFilters(filters);
           if (encodedFilters) {
             setSearchParams(encodedFilters);
+          } else {
+            searchParams.delete("qp");
+            searchParams.delete("lat");
+            searchParams.delete("lng");
+            searchParams.delete("r");
+            setSearchParams(searchParams);
           }
         }
       },
@@ -328,10 +341,32 @@ export function useHandleSearchParams(initialParamsLoaded: boolean) {
       },
     });
 
+    const removeQueryListener = searchActions.addListener({
+      valueAccessor: (state) => state.query.input,
+      callback: (input) => {
+        if (input) {
+          // const searchParams = new URLSearchParams();
+          searchParams.set("q", input);
+          searchActions.setStaticFilters([]);
+          setSearchParams(searchParams);
+        } else {
+          searchParams.delete("q");
+          setSearchParams(searchParams);
+        }
+      },
+    });
+
     return () => {
       // Unsubscribe from search state listeners.
       removeStaticListener();
       removeFacetListener();
+      removeQueryListener();
     };
-  }, [searchActions, searchParams, setSearchParams, initialParamsLoaded]);
+  }, [
+    searchActions,
+    searchParams,
+    setSearchParams,
+    initialParamsLoaded,
+    query,
+  ]);
 }
